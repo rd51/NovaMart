@@ -624,11 +624,14 @@ def page_attribution_funnel(data):
     with col2:
         st.subheader("🔻 Conversion Funnel")
         
-        funnel_sorted = funnel.sort_values('visitors', ascending=True)
+        funnel_sorted = funnel.sort_values('stage', ascending=True)
+        
+        # Use conversion_rate as the funnel metric if visitors not available
+        funnel_metric = 'visitors' if 'visitors' in funnel_sorted.columns else 'conversion_rate'
         
         fig = go.Figure(go.Funnel(
             y=funnel_sorted['stage'],
-            x=funnel_sorted['visitors'],
+            x=funnel_sorted[funnel_metric],
             textinfo="value+percent initial",
             marker=dict(color=['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3'][:len(funnel)])
         ))
@@ -645,19 +648,35 @@ def page_attribution_funnel(data):
     st.subheader("📈 Funnel Conversion Rates")
     
     funnel_calc = funnel.copy().sort_values('visitors', ascending=False)
-    funnel_calc['conversion_rate'] = (funnel_calc['conversions'] / funnel_calc['visitors'] * 100).round(2)
-    funnel_calc['drop_off'] = funnel_calc['visitors'].shift(1) - funnel_calc['visitors']
-    funnel_calc['drop_off_pct'] = (funnel_calc['drop_off'] / funnel_calc['visitors'].shift(1) * 100).round(2)
     
-    st.dataframe(
-        funnel_calc[['stage', 'visitors', 'conversions', 'conversion_rate', 'drop_off_pct']].style.format({
-            'visitors': '{:,.0f}',
-            'conversions': '{:,.0f}',
-            'conversion_rate': '{:.2f}%',
-            'drop_off_pct': '{:.2f}%'
-        }),
-        use_container_width=True
-    )
+    # Calculate conversion_rate if it doesn't exist, otherwise use existing
+    if 'conversion_rate' not in funnel_calc.columns:
+        funnel_calc['conversion_rate'] = (funnel_calc['conversions'] / funnel_calc['visitors'] * 100).round(2)
+    else:
+        # Ensure conversion_rate is numeric
+        funnel_calc['conversion_rate'] = pd.to_numeric(funnel_calc['conversion_rate'], errors='coerce')
+    
+    # Calculate drop_off if conversions column exists
+    if 'conversions' in funnel_calc.columns:
+        funnel_calc['drop_off'] = funnel_calc['conversions'].shift(1) - funnel_calc['conversions']
+        funnel_calc['drop_off_pct'] = (funnel_calc['drop_off'] / funnel_calc['conversions'].shift(1) * 100).round(2)
+        
+        st.dataframe(
+            funnel_calc[['stage', 'conversions', 'conversion_rate', 'drop_off_pct']].style.format({
+                'conversions': '{:,.0f}',
+                'conversion_rate': '{:.2f}%',
+                'drop_off_pct': '{:.2f}%'
+            }),
+            use_container_width=True
+        )
+    else:
+        # If only conversion_rate data available, display that
+        st.dataframe(
+            funnel_calc[['stage', 'conversion_rate']].style.format({
+                'conversion_rate': '{:.2f}%'
+            }),
+            use_container_width=True
+        )
     
     st.markdown("---")
     
