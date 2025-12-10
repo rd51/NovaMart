@@ -390,8 +390,9 @@ def page_customer_insights(data):
     
     col1, col2 = st.columns([3, 1])
     with col2:
-        show_trend = st.checkbox("Show Trend Line", value=True)
+        show_trend = st.checkbox("Show Trend Line", value=False)
     
+    # Create scatter plot
     fig = px.scatter(
         customers,
         x='income',
@@ -401,8 +402,30 @@ def page_customer_insights(data):
         hover_data=['age', 'tenure_months', 'satisfaction_score'],
         title='Income vs Lifetime Value by Customer Segment',
         labels={'income': 'Annual Income (₹)', 'lifetime_value': 'Lifetime Value (₹)', 'customer_segment': 'Segment'},
-        trendline='ols' if show_trend else None
+        opacity=0.7
     )
+    
+    # Add trend line if selected (without grouping by color)
+    if show_trend:
+        try:
+            from scipy import stats
+            # Calculate overall trend line
+            valid_data = customers.dropna(subset=['income', 'lifetime_value'])
+            slope, intercept, r_value, p_value, std_err = stats.linregress(valid_data['income'], valid_data['lifetime_value'])
+            x_trend = np.array([customers['income'].min(), customers['income'].max()])
+            y_trend = slope * x_trend + intercept
+            
+            fig.add_trace(go.Scatter(
+                x=x_trend, 
+                y=y_trend,
+                mode='lines',
+                name=f'Trend (R²={r_value**2:.3f})',
+                line=dict(color='red', width=2, dash='dash'),
+                hovertemplate='Trend Line<br>Income: ₹%{x:,.0f}<br>LTV: ₹%{y:,.0f}<extra></extra>'
+            ))
+        except ImportError:
+            st.warning("⚠️ Install scipy for trend line: pip install scipy")
+    
     fig.update_layout(height=450, template='plotly_white')
     st.plotly_chart(fig, use_container_width=True)
     
